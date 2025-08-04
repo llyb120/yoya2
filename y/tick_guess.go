@@ -49,7 +49,8 @@ func guess(dateStr string) (time.Time, string, error) {
 
 	case 20:
 		formats = []string{
-			time.RFC3339, // ISO8601带时区
+			// time.RFC3339, // ISO8601带时区
+			"2006-01-02T15:04:05Z",
 		}
 
 	case 24, 25:

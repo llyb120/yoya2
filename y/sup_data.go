@@ -9,7 +9,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
+var _dataJson = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const dataKey = "$data"
 
@@ -104,7 +104,7 @@ func (d Data[T]) MarshalJSON() ([]byte, error) {
 
 	// 处理$data
 	if dataPtr := d.Data(); dataPtr != nil {
-		dataBytes, err := json.Marshal(*dataPtr)
+		dataBytes, err := _dataJson.Marshal(*dataPtr)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (d Data[T]) MarshalJSON() ([]byte, error) {
 		for k, v := range extraFields {
 			result[k] = v
 		}
-		return json.Marshal(result)
+		return _dataJson.Marshal(result)
 	}
 
 	// 合并JSON
@@ -154,7 +154,7 @@ func mergeJSON(dataJSON string, extraFields map[string]interface{}) ([]byte, err
 		if extraFields == nil || len(extraFields) == 0 {
 			return []byte("{}"), nil
 		}
-		return json.Marshal(extraFields)
+		return _dataJson.Marshal(extraFields)
 	}
 
 	// 如果没有额外字段
@@ -163,7 +163,7 @@ func mergeJSON(dataJSON string, extraFields map[string]interface{}) ([]byte, err
 	}
 
 	// 序列化额外字段
-	extraBytes, err := json.Marshal(extraFields)
+	extraBytes, err := _dataJson.Marshal(extraFields)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (d *Data[T]) UnmarshalJSON(data []byte) error {
 
 	// 解析到临时map，便于分类字段
 	var raw map[string]interface{}
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := _dataJson.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
@@ -200,7 +200,7 @@ func (d *Data[T]) UnmarshalJSON(data []byte) error {
 
 	// 反序列化到实际类型（忽略错误，不影响额外字段处理）
 	var typed T
-	_ = json.Unmarshal(data, &typed)
+	_ = _dataJson.Unmarshal(data, &typed)
 	(*d)[dataKey] = &typed // 始终保证存在$data，并非nil
 
 	// 分类额外字段
