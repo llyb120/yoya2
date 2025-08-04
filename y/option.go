@@ -9,6 +9,9 @@ const (
 	NotEmpty
 	Not
 	Is
+
+	// stl map
+	RMap
 )
 
 type OptionContext struct {

@@ -6,7 +6,7 @@ import (
 	"runtime"
 )
 
-func Map[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
+func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 	var async, distinct, ignoreNil, ignoreEmpty bool
 	for _, opt := range opts {
 		switch opt {
@@ -87,8 +87,8 @@ func Map[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 	return result
 }
 
-func FlatMap[T any, R any](arr []T, fn func(T, int) []R, opts ...option) []R {
-	var _result = Map(arr, fn, opts...)
+func FlatFlex[T any, R any](arr []T, fn func(T, int) []R, opts ...option) []R {
+	var _result = Flex(arr, fn, opts...)
 	var result = make([]R, 0)
 	for _, v := range _result {
 		result = append(result, v...)

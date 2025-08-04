@@ -86,7 +86,7 @@ func (d Data[T]) Clone() Data[T] {
 	return cp
 }
 
-func (d Data[T]) Foreach(fn func(key string, value any) bool) {
+func (d Data[T]) ForEach(fn func(key string, value any) bool) {
 	for key, value := range d {
 		if strings.HasPrefix(key, "$") {
 			continue
