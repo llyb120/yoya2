@@ -52,7 +52,7 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 	}
 	// 如果需要过滤
 	if ignoreNil || ignoreEmpty {
-		Filter(result, func(v R) bool {
+		result = Filter(result, func(v R) bool {
 			if ignoreNil {
 				rv := any(v)
 				if rv == nil {

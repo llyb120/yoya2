@@ -9,9 +9,6 @@ type filterFunc[T any] interface {
 }
 
 func Filter[T any, K filterFunc[T]](arr []T, fn K, opts ...any) []T {
-	if len(opts) == 0 {
-		return arr
-	}
 	// 如果第一个是一个方法
 	switch fn := any(fn).(type) {
 	case func(T) bool:

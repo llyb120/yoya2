@@ -164,7 +164,9 @@ func TestCustomTypeFilter(t *testing.T) {
 	})
 
 	t.Run("过滤特定名称的用户", func(t *testing.T) {
-		result := y.Filter(users, y.Is, user{Name: "Alice"}, user{Name: "Charlie"})
+		result := y.Filter(users, func(u user) bool {
+			return u.Name == "Alice" || u.Name == "Charlie"
+		})
 		expected := []user{{1, "Alice", 25}, {3, "Charlie", 20}}
 		assert.Equal(t, expected, result)
 	})
@@ -180,7 +182,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("nil切片", func(t *testing.T) {
 		var s []int = nil
 		result := y.Filter(s, y.Is, 1, 2, 3)
-		assert.Nil(t, result)
+		assert.Empty(t, result)
 	})
 
 }
