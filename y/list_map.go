@@ -7,7 +7,7 @@ import (
 )
 
 func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
-	var async, distinct, ignoreNil, ignoreEmpty bool
+	var async, distinct, ignoreNil, ignoreEmpty, isPanic bool
 	for _, opt := range opts {
 		switch opt {
 		case UseAsync:
@@ -18,6 +18,8 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 			ignoreNil = true
 		case NotEmpty:
 			ignoreEmpty = true
+		case UsePanic:
+			isPanic = true
 		}
 	}
 	result := make([]R, len(arr))
@@ -29,6 +31,9 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 			wg.goWithPanic(func() error {
 				defer func() {
 					if r := recover(); r != nil {
+						if isPanic {
+							panic(r)
+						}
 						log.Println("panic: ", r)
 						wg.Lock()
 						defer wg.Unlock()

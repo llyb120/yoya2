@@ -5,6 +5,7 @@ type option int
 const (
 	UseAsync option = iota
 	UseDistinct
+	UsePanic
 	NotNil
 	NotEmpty
 	Not
