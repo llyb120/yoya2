@@ -39,13 +39,13 @@ type selectorProp struct {
 }
 
 func (s *selectorNode) setProp(key string, value string) {
-	if strings.HasPrefix(key, opLike) {
+	if strings.HasPrefix(value, opLike) {
 		s.props[key] = &selectorProp{
 			key:   key,
 			op:    opLike,
 			value: value[2:],
 		}
-	} else if strings.HasPrefix(key, opNot) {
+	} else if strings.HasPrefix(value, opNot) {
 		s.props[key] = &selectorProp{
 			key:   key,
 			op:    opNot,
@@ -206,6 +206,7 @@ func (s *selector) parseExpr(node *selectorNode, str string) {
 				value.WriteByte(c)
 				if s.next(str, i) == '=' {
 					value.WriteByte('=')
+					i++
 				}
 				continue
 			}
@@ -213,6 +214,7 @@ func (s *selector) parseExpr(node *selectorNode, str string) {
 				value.WriteByte(c)
 				if s.next(str, i) == '=' {
 					value.WriteByte('=')
+					i++
 				}
 				continue
 			}
