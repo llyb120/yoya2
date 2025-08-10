@@ -55,15 +55,21 @@ func (d *dataCache) cachedFieldSet(t reflect.Type) map[string]struct{} {
 	return fields
 }
 
-func NewData[T any]() Data[T] {
-	return make(Data[T])
+func NewData[T any](ts ...T) Data[T] {
+	mp := make(Data[T])
+	if len(ts) > 0 {
+		mp.Set(ts[0])
+	}
+	return mp
 }
 
 func (d Data[T]) Data() *T {
 	if data, ok := d[dataKey]; ok {
 		return data.(*T)
 	}
-	return nil
+	var zero = new(T)
+	d[dataKey] = zero
+	return zero
 }
 
 func (d Data[T]) Set(data T) {
