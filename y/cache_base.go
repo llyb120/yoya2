@@ -2,11 +2,11 @@ package y
 
 import (
 	"container/list" // 引入 container/list 包
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"strconv"
-	"strings"
 )
 
 // lruEntry represents a node in the LRU linked list.
@@ -14,7 +14,7 @@ type lruEntry[K comparable, V any] struct {
 	key        K
 	value      V
 	expireTime *time.Time // 过期时间
-	size       uint64    // 条目占用的内存大小
+	size       uint64     // 条目占用的内存大小
 }
 
 const (
@@ -97,8 +97,9 @@ func NewBaseCache[K comparable, V any](opts CacheOption) *BaseCache[K, V] {
 
 // Set 设置缓存项，可以指定可选的TTL
 // 使用示例:
-//   cache.Set(key, value)                // 使用默认TTL
-//   cache.Set(key, value, time.Hour)     // 指定TTL为1小时
+//
+//	cache.Set(key, value)                // 使用默认TTL
+//	cache.Set(key, value, time.Hour)     // 指定TTL为1小时
 func (c *BaseCache[K, V]) Set(key K, value V, ttl ...time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -209,14 +210,10 @@ func (c *BaseCache[K, V]) SetMap(m map[K]V) {
 }
 
 func (c *BaseCache[K, V]) Get(key K) (V, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	return c.get(key)
 }
 
 func (c *BaseCache[K, V]) Gets(keys ...K) []V {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	values := make([]V, 0, len(keys))
 	for _, key := range keys {
 		value, ok := c.get(key)
@@ -261,6 +258,30 @@ func (c *BaseCache[K, V]) get(key K) (V, bool) {
 	return item.value, true
 }
 
+// getLocked 要求外部已持有写锁 c.mu.Lock()
+func (c *BaseCache[K, V]) getLocked(key K) (V, bool) {
+	entry, ok := c.cache[key]
+	if !ok {
+		var zero V
+		return zero, false
+	}
+
+	item := entry.Value.(*lruEntry[K, V])
+
+	// 检查是否过期（持写锁可直接删除）
+	now := time.Now()
+	if item.expireTime != nil && now.After(*item.expireTime) {
+		c.ll.Remove(entry)
+		delete(c.cache, key)
+		atomic.AddUint64(&c.currentMemory, ^(item.size - 1))
+		var zero V
+		return zero, false
+	}
+
+	c.ll.MoveToFront(entry)
+	return item.value, true
+}
+
 func (c *BaseCache[K, V]) Del(key ...K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -302,8 +323,8 @@ func (c *BaseCache[K, V]) maybeCleanup() {
 		next := e.Prev()
 
 		// 如果项目已过期或需要释放内存，则删除
-		if (entry.expireTime != nil && now.After(*entry.expireTime)) || 
-		   atomic.LoadUint64(&c.currentMemory) > c.maxMemory {
+		if (entry.expireTime != nil && now.After(*entry.expireTime)) ||
+			atomic.LoadUint64(&c.currentMemory) > c.maxMemory {
 			delete(c.cache, entry.key)
 			c.ll.Remove(e)
 			atomic.AddUint64(&c.currentMemory, ^(entry.size - 1))
@@ -382,7 +403,7 @@ func (c *BaseCache[K, V]) GetOrSetFunc(key K, fn func() V) V {
 	if !ok {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		if value, ok = c.get(key); ok {
+		if value, ok = c.getLocked(key); ok {
 			return value
 		}
 		value = fn()
