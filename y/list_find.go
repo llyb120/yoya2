@@ -1,7 +1,7 @@
 package y
 
 type findFunc[T any] interface {
-	func(T) bool | func(T, int) bool | func(*T) bool | func(*T, int) bool
+	func(T) bool | func(T, int) bool | func(*T) bool | func(*T, int) bool | any
 }
 
 func Find[T any, K findFunc[T]](arr []T, fn K, opts ...any) (T, bool) {

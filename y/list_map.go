@@ -6,24 +6,19 @@ import (
 	"runtime"
 )
 
+type flexOption struct {
+	ignoreNil   bool
+	ignoreEmpty bool
+	isPanic     bool
+	async       bool
+	distinct    bool
+}
+
 func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
-	var async, distinct, ignoreNil, ignoreEmpty, isPanic bool
-	for _, opt := range opts {
-		switch opt {
-		case UseAsync:
-			async = true
-		case UseDistinct:
-			distinct = true
-		case NotNil:
-			ignoreNil = true
-		case NotEmpty:
-			ignoreEmpty = true
-		case UsePanic:
-			isPanic = true
-		}
-	}
+	var flexOption flexOption
+	makeFlexOption(&flexOption, opts...)
 	result := make([]R, len(arr))
-	if async {
+	if flexOption.async {
 		var wg = WaitGroup{}
 		wg.SetLimit(runtime.GOMAXPROCS(0))
 		for i, _ := range arr {
@@ -31,7 +26,7 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 			wg.goWithPanic(func() error {
 				defer func() {
 					if r := recover(); r != nil {
-						if isPanic {
+						if flexOption.isPanic {
 							panic(r)
 						}
 						log.Println("panic: ", r)
@@ -55,10 +50,43 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 			result[i] = r
 		}
 	}
+
+	return applyFlexOption(&flexOption, result)
+}
+
+func FlatFlex[T any, R any](arr []T, fn func(T, int) []R, opts ...option) []R {
+	var flexOption flexOption
+	makeFlexOption(&flexOption, opts...)
+	var _result = Flex(arr, fn, opts...)
+	var result = make([]R, 0)
+	for _, v := range _result {
+		result = append(result, v...)
+	}
+	return applyFlexOption(&flexOption, result)
+}
+
+func makeFlexOption(flexOption *flexOption, opts ...option) {
+	for _, opt := range opts {
+		switch opt {
+		case UseAsync:
+			flexOption.async = true
+		case UseDistinct:
+			flexOption.distinct = true
+		case NotNil:
+			flexOption.ignoreNil = true
+		case NotEmpty:
+			flexOption.ignoreEmpty = true
+		case UsePanic:
+			flexOption.isPanic = true
+		}
+	}
+}
+
+func applyFlexOption[R any](flexOption *flexOption, result []R) []R {
 	// 如果需要过滤
-	if ignoreNil || ignoreEmpty {
+	if flexOption.ignoreNil || flexOption.ignoreEmpty {
 		result = Filter(result, func(v R) bool {
-			if ignoreNil {
+			if flexOption.ignoreNil {
 				rv := any(v)
 				if rv == nil {
 					return false
@@ -72,7 +100,7 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 					}
 				}
 			}
-			if ignoreEmpty {
+			if flexOption.ignoreEmpty {
 				rv := any(v)
 				if rv == nil {
 					return false
@@ -84,19 +112,10 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 			return true
 		})
 	}
-	if distinct {
+	if flexOption.distinct {
 		result = Distinct(result, func(v R, i int) any {
 			return v
 		})
-	}
-	return result
-}
-
-func FlatFlex[T any, R any](arr []T, fn func(T, int) []R, opts ...option) []R {
-	var _result = Flex(arr, fn, opts...)
-	var result = make([]R, 0)
-	for _, v := range _result {
-		result = append(result, v...)
 	}
 	return result
 }

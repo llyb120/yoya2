@@ -4,7 +4,7 @@ type distinctFunc[T any] interface {
 	func(T, int) any | func(*T, int) any | func(T) any | func(*T) any
 }
 
-func Distinct[T any, K distinctFunc[T]](arr []T, fn ...K) []T {
+func Distinct[T any](arr []T, fn ...any) []T {
 	var mp = make(map[any]bool)
 	var result []T
 	for i, v := range arr {
@@ -23,8 +23,8 @@ func Distinct[T any, K distinctFunc[T]](arr []T, fn ...K) []T {
 	return result
 }
 
-func doDistinct[T any, K distinctFunc[T]](fn K, v *T, i int) any {
-	switch fn := any(fn).(type) {
+func doDistinct[T any](fn any, v *T, i int) any {
+	switch fn := fn.(type) {
 	case func(T, int) any:
 		return fn(*v, i)
 	case func(*T, int) any:
