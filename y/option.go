@@ -13,6 +13,8 @@ const (
 
 	// stl map
 	RMap
+	// isFlatFlex
+	isFlatFlex
 )
 
 type OptionContext struct {

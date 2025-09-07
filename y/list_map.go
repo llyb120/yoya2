@@ -12,6 +12,7 @@ type flexOption struct {
 	isPanic     bool
 	async       bool
 	distinct    bool
+	isFlatFlex  bool
 }
 
 func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
@@ -51,10 +52,14 @@ func Flex[T any, R any](arr []T, fn func(T, int) R, opts ...option) []R {
 		}
 	}
 
+	if flexOption.isFlatFlex {
+		return result
+	}
 	return applyFlexOption(&flexOption, result)
 }
 
 func FlatFlex[T any, R any](arr []T, fn func(T, int) []R, opts ...option) []R {
+	opts = append(opts, isFlatFlex)
 	var flexOption flexOption
 	makeFlexOption(&flexOption, opts...)
 	var _result = Flex(arr, fn, opts...)
@@ -78,6 +83,8 @@ func makeFlexOption(flexOption *flexOption, opts ...option) {
 			flexOption.ignoreEmpty = true
 		case UsePanic:
 			flexOption.isPanic = true
+		case isFlatFlex:
+			flexOption.isFlatFlex = true
 		}
 	}
 }
