@@ -3,7 +3,7 @@ package y
 import "time"
 
 type moveType string
-type YmdUnit uint64
+type YmdUnit int64
 
 const (
 	Second time.Duration = time.Second
