@@ -359,9 +359,14 @@ func (c *Converter) convertToPtr(dest, src reflect.Value) error {
 		return nil
 	}
 
-	// 解引用指针
+	// 解引用指针或接口
 	if src.Kind() == reflect.Ptr || src.Kind() == reflect.Interface {
 		src = src.Elem()
+		// 解引用后再次检查是否有效（处理 interface{} 包含 nil 的情况）
+		if !src.IsValid() {
+			dest.Set(reflect.Zero(dest.Type()))
+			return nil
+		}
 	}
 
 	// 如果目标为nil，创建新实例

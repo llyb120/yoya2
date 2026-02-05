@@ -484,3 +484,23 @@ func BenchmarkCast_Nested(b *testing.B) {
 		_ = y.Cast(&dest, src)
 	}
 }
+
+func TestCast_Null(t *testing.T) {
+	type a struct {
+		ID *int `json:"id"`
+	}
+
+	var b = map[string]any{
+		"id": nil,
+	}
+
+	var c a
+	err := y.Cast(&c, b)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if c.ID != nil {
+		t.Errorf("expected ID to be nil, got %v", c.ID)
+	}
+}
