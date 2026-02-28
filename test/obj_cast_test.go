@@ -504,3 +504,111 @@ func TestCast_Null(t *testing.T) {
 		t.Errorf("expected ID to be nil, got %v", c.ID)
 	}
 }
+
+func TestCast_TimeToString(t *testing.T) {
+	now := time.Date(2023, 6, 15, 14, 30, 45, 0, time.UTC)
+
+	t.Run("直接转换 time.Time -> string（默认格式）", func(t *testing.T) {
+		var s string
+		err := y.Cast(&s, now)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023-06-15 14:30:45"
+		if s != expected {
+			t.Errorf("expected %q, got %q", expected, s)
+		}
+	})
+
+	t.Run("map -> struct：time.Time -> string 默认格式", func(t *testing.T) {
+		type Dest struct {
+			CreatedAt string `db:"created_at"`
+		}
+		src := map[string]interface{}{
+			"created_at": now,
+		}
+		var dest Dest
+		err := y.Cast(&dest, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023-06-15 14:30:45"
+		if dest.CreatedAt != expected {
+			t.Errorf("expected %q, got %q", expected, dest.CreatedAt)
+		}
+	})
+
+	t.Run("map -> struct：time.Time -> string 带 format 标签（Java风格）", func(t *testing.T) {
+		type Dest struct {
+			CreatedAt string `db:"created_at" format:"yyyy/MM/dd"`
+		}
+		src := map[string]interface{}{
+			"created_at": now,
+		}
+		var dest Dest
+		err := y.Cast(&dest, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023/06/15"
+		if dest.CreatedAt != expected {
+			t.Errorf("expected %q, got %q", expected, dest.CreatedAt)
+		}
+	})
+
+	t.Run("map -> struct：time.Time -> string 带 format 标签（Go风格）", func(t *testing.T) {
+		type Dest struct {
+			CreatedAt string `db:"created_at" format:"2006/01/02 15:04"`
+		}
+		src := map[string]interface{}{
+			"created_at": now,
+		}
+		var dest Dest
+		err := y.Cast(&dest, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023/06/15 14:30"
+		if dest.CreatedAt != expected {
+			t.Errorf("expected %q, got %q", expected, dest.CreatedAt)
+		}
+	})
+
+	t.Run("struct -> struct：time.Time -> string 带 format 标签", func(t *testing.T) {
+		type Src struct {
+			CreatedAt time.Time `db:"created_at"`
+		}
+		type Dest struct {
+			CreatedAt string `db:"created_at" format:"yyyy-MM-dd"`
+		}
+		src := Src{CreatedAt: now}
+		var dest Dest
+		err := y.Cast(&dest, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023-06-15"
+		if dest.CreatedAt != expected {
+			t.Errorf("expected %q, got %q", expected, dest.CreatedAt)
+		}
+	})
+
+	t.Run("struct -> struct：*time.Time -> string 带 format 标签", func(t *testing.T) {
+		type Src struct {
+			UpdatedAt *time.Time `db:"updated_at"`
+		}
+		type Dest struct {
+			UpdatedAt string `db:"updated_at" format:"yyyy-MM-dd HH:mm:ss"`
+		}
+		src := Src{UpdatedAt: &now}
+		var dest Dest
+		err := y.Cast(&dest, src)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "2023-06-15 14:30:45"
+		if dest.UpdatedAt != expected {
+			t.Errorf("expected %q, got %q", expected, dest.UpdatedAt)
+		}
+	})
+}

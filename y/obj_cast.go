@@ -50,8 +50,40 @@ func (c *Converter) Convert(dest, src interface{}) error {
 
 // fieldInfo 存储字段的索引和名称信息
 type fieldInfo struct {
-	Index int    // 字段索引
-	Name  string // 字段名
+	Index  int    // 字段索引
+	Name   string // 字段名
+	Format string // 时间格式化标签（用于 time.Time -> string 转换）
+}
+
+const defaultTimeFormat = "2006-01-02 15:04:05"
+
+// javaFormatToGo 将 Java/常见风格的时间格式转换为 Go 的 time 格式
+func javaFormatToGo(format string) string {
+	replacer := strings.NewReplacer(
+		"yyyy", "2006",
+		"yy", "06",
+		"MM", "01",
+		"dd", "02",
+		"HH", "15",
+		"hh", "03",
+		"mm", "04",
+		"ss", "05",
+		"SSS", "000",
+		"SS", "00",
+		"S", "0",
+	)
+	return replacer.Replace(format)
+}
+
+// getTimeFormat 获取 Go 风格的时间格式字符串，如果已是 Go 格式则直接返回
+func getTimeFormat(format string) string {
+	if format == "" {
+		return defaultTimeFormat
+	}
+	if strings.Contains(format, "2006") || strings.Contains(format, "06") {
+		return format
+	}
+	return javaFormatToGo(format)
 }
 
 // 获取字段名和索引映射
@@ -83,10 +115,13 @@ func (c *Converter) getFieldMap(t reflect.Type) map[string]fieldInfo {
 				}
 			}
 
-			info := fieldInfo{
-				Index: i,
-				Name:  fieldName,
-			}
+		formatTag := field.Tag.Get("format")
+
+		info := fieldInfo{
+			Index:  i,
+			Name:   fieldName,
+			Format: formatTag,
+		}
 
 			if tagName != "" {
 				fieldMap[tagName] = info
@@ -448,6 +483,20 @@ func (c *Converter) setStructField(dest reflect.Value, fieldInfo fieldInfo, srcV
 				}
 			}
 
+			// 特殊处理 time.Time -> string（带 format 标签）
+			if fieldType.Kind() == reflect.String {
+				actualSrcVal := srcVal
+				for actualSrcVal.Kind() == reflect.Interface && !actualSrcVal.IsNil() {
+					actualSrcVal = actualSrcVal.Elem()
+				}
+				actualSrcVal = reflect.Indirect(actualSrcVal)
+				if actualSrcVal.IsValid() && actualSrcVal.Type() == reflect.TypeOf(time.Time{}) {
+					t := actualSrcVal.Interface().(time.Time)
+					currentField.SetString(t.Format(getTimeFormat(fieldInfo.Format)))
+					return nil
+				}
+			}
+
 			// 其他类型正常转换
 			return c.convertValue(currentField, srcVal)
 		}
@@ -485,19 +534,17 @@ func (c *Converter) convertToStruct(dest, src reflect.Value) error {
 		iter := src.MapRange()
 		for iter.Next() {
 			key := iter.Key().String()
-			fieldInfo, ok := fieldMap[key]
+			fi, ok := fieldMap[key]
 			if !ok {
-				continue // 跳过不存在的字段
+				continue
 			}
 
-			// 获取目标字段类型
-			field := dest.Field(fieldInfo.Index)
+			field := dest.Field(fi.Index)
 			fieldType := field.Type()
 
-			// 特殊处理time.Time类型（包括指针类型）
+			// 特殊处理 time.Time 类型（包括指针类型）
 			if fieldType == reflect.TypeOf(time.Time{}) || fieldType == reflect.TypeOf(&time.Time{}) {
 				srcVal := iter.Value()
-				// 处理接口类型，获取实际值
 				for srcVal.Kind() == reflect.Interface && !srcVal.IsNil() {
 					srcVal = srcVal.Elem()
 				}
@@ -505,10 +552,8 @@ func (c *Converter) convertToStruct(dest, src reflect.Value) error {
 					t, err := Guess(srcVal.String())
 					if err == nil && field.CanSet() {
 						if fieldType.Kind() == reflect.Ptr {
-							// 处理*time.Time类型
 							field.Set(reflect.ValueOf(&t))
 						} else {
-							// 处理time.Time类型
 							field.Set(reflect.ValueOf(t))
 						}
 					}
@@ -516,40 +561,47 @@ func (c *Converter) convertToStruct(dest, src reflect.Value) error {
 				}
 			}
 
-			// 设置字段值
-			if err := c.setStructField(dest, fieldInfo, iter.Value()); err != nil {
+			// 特殊处理 time.Time -> string（带 format 标签）
+			if fieldType.Kind() == reflect.String {
+				srcVal := iter.Value()
+				for srcVal.Kind() == reflect.Interface && !srcVal.IsNil() {
+					srcVal = srcVal.Elem()
+				}
+				srcVal = reflect.Indirect(srcVal)
+				if srcVal.IsValid() && srcVal.Type() == reflect.TypeOf(time.Time{}) {
+					t := srcVal.Interface().(time.Time)
+					field.SetString(t.Format(getTimeFormat(fi.Format)))
+					continue
+				}
+			}
+
+			if err := c.setStructField(dest, fi, iter.Value()); err != nil {
 				return fmt.Errorf("field %s: %w", key, err)
 			}
 		}
 		return nil
 
 	case reflect.Struct:
-		// 结构体到结构体的转换
 		srcType := src.Type()
 		srcFieldMap := c.getFieldMap(srcType)
 
-		// 遍历目标字段
 		for destKey, destInfo := range fieldMap {
-			// 查找源字段
 			srcInfo, exists := srcFieldMap[destKey]
 			if !exists {
 				continue
 			}
 
-			// 获取源字段值
 			srcField := src.Field(srcInfo.Index)
 			if !srcField.IsValid() {
 				continue
 			}
 
-			// 获取目标字段类型
 			field := dest.Field(destInfo.Index)
 			fieldType := field.Type()
 
-			// 特殊处理time.Time类型（包括指针类型）
+			// 特殊处理 time.Time 类型（包括指针类型）
 			if fieldType == reflect.TypeOf(time.Time{}) || fieldType == reflect.TypeOf(&time.Time{}) {
 				srcVal := srcField
-				// 处理接口类型，获取实际值
 				for srcVal.Kind() == reflect.Interface && !srcVal.IsNil() {
 					srcVal = srcVal.Elem()
 				}
@@ -557,10 +609,8 @@ func (c *Converter) convertToStruct(dest, src reflect.Value) error {
 					t, err := Guess(srcVal.String())
 					if err == nil && field.CanSet() {
 						if fieldType.Kind() == reflect.Ptr {
-							// 处理*time.Time类型
 							field.Set(reflect.ValueOf(&t))
 						} else {
-							// 处理time.Time类型
 							field.Set(reflect.ValueOf(t))
 						}
 					}
@@ -568,7 +618,20 @@ func (c *Converter) convertToStruct(dest, src reflect.Value) error {
 				}
 			}
 
-			// 设置目标字段值
+			// 特殊处理 time.Time -> string（带 format 标签）
+			if fieldType.Kind() == reflect.String {
+				srcVal := srcField
+				for srcVal.Kind() == reflect.Interface && !srcVal.IsNil() {
+					srcVal = srcVal.Elem()
+				}
+				srcVal = reflect.Indirect(srcVal)
+				if srcVal.IsValid() && srcVal.Type() == reflect.TypeOf(time.Time{}) {
+					t := srcVal.Interface().(time.Time)
+					field.SetString(t.Format(getTimeFormat(destInfo.Format)))
+					continue
+				}
+			}
+
 			if err := c.setStructField(dest, destInfo, srcField); err != nil {
 				return fmt.Errorf("field %s: %w", destKey, err)
 			}
@@ -705,9 +768,21 @@ func (c *Converter) convertToMap(dest, src reflect.Value) error {
 
 // 转换为字符串
 func (c *Converter) convertToString(dest, src reflect.Value) error {
+	return c.convertToStringWithFormat(dest, src, "")
+}
+
+// convertToStringWithFormat 转换为字符串，支持 format 参数（用于 time.Time 格式化）
+func (c *Converter) convertToStringWithFormat(dest, src reflect.Value, format string) error {
 	src = reflect.Indirect(src)
 	if !src.IsValid() {
 		dest.SetString("")
+		return nil
+	}
+
+	// 处理 time.Time -> string
+	if src.Type() == reflect.TypeOf(time.Time{}) {
+		t := src.Interface().(time.Time)
+		dest.SetString(t.Format(getTimeFormat(format)))
 		return nil
 	}
 
@@ -722,8 +797,10 @@ func (c *Converter) convertToString(dest, src reflect.Value) error {
 		dest.SetString(fmt.Sprintf("%d", src.Uint()))
 	case reflect.Float32, reflect.Float64:
 		dest.SetString(fmt.Sprintf("%v", src.Float()))
+	case reflect.Struct:
+		return fmt.Errorf("cannot convert %v to string", src.Type())
 	case reflect.Interface, reflect.Ptr:
-		return c.convertToString(dest, src.Elem())
+		return c.convertToStringWithFormat(dest, src.Elem(), format)
 	default:
 		return fmt.Errorf("cannot convert %v to string", src.Type())
 	}
