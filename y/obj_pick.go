@@ -435,9 +435,30 @@ func (p *picker[T]) walk(dest any, kk string) {
 	if kvMap != nil {
 		// 检查属性是否匹配
 		p.matchProps(kvMap, keyWrapper)
-		if p.checkMatchPos(keyWrapper) && keyWrapper.matchPos == len(p.nodes) {
-			keyWrapper.matchPos--
-			p.pushResult(dest)
+		if p.checkMatchPos(keyWrapper) {
+			// 检查是否到达尾节点
+			if keyWrapper.matchPos == len(p.nodes) {
+				keyWrapper.matchPos--
+				// 如果是 slice，应该推送每个元素而不是整个 slice
+				if v.Kind() == reflect.Slice {
+					for i := 0; i < v.Len(); i++ {
+						p.pushResult(v.Index(i).Interface())
+					}
+				} else {
+					p.pushResult(dest)
+				}
+			} else if p.nodes[keyWrapper.matchPos].key == "" && len(p.nodes[keyWrapper.matchPos].props) > 0 {
+				// 下一个节点是纯属性选择器，需要在当前对象层级检查属性
+				// 先检查当前对象是否匹配属性
+				oldMatchPos := keyWrapper.matchPos
+				p.matchProps(kvMap, keyWrapper)
+				if p.checkMatchPos(keyWrapper) && keyWrapper.matchPos == len(p.nodes) {
+					keyWrapper.matchPos--
+					p.pushResult(dest)
+				}
+				// 恢复 matchPos，继续遍历子元素
+				keyWrapper.matchPos = oldMatchPos
+			}
 		}
 		// 使用确定性的顺序遍历子节点，保证结果有序
 		if v.Kind() == reflect.Slice {
@@ -459,7 +480,14 @@ func (p *picker[T]) walk(dest any, kk string) {
 		// 如果命中尾节点
 		if p.checkMatchPos(keyWrapper) && keyWrapper.matchPos == len(p.nodes) {
 			keyWrapper.matchPos--
-			p.pushResult(dest)
+			// 如果是 slice，应该推送每个元素而不是整个 slice
+			if v.Kind() == reflect.Slice {
+				for i := 0; i < v.Len(); i++ {
+					p.pushResult(v.Index(i).Interface())
+				}
+			} else {
+				p.pushResult(dest)
+			}
 		}
 		// if keyWrapper.keyMatched[len(p.nodes)-1] && keyWrapper.propsMatched[len(p.nodes)-1] == len(p.nodes[len(p.nodes)-1].props) && p.checkAllPropsMatched() {
 		// 	p.pushResult(dest)
